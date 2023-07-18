@@ -1,13 +1,45 @@
 #!/bin/bash
-#installtion script built from instructions at https://greenbone.github.io/docs/latest/22.4/source-build/index.html#choosing-an-install-prefix
+#installation script built from instructions at https://greenbone.github.io/docs/latest/22.4/source-build/index.html#choosing-an-install-prefix
 
+#check if running as sudo
+if [[ "$EUID" != 0 ]]
+then
+  # exit if not sudo or root
+      echo "Run script with sudo"
+      exit 1
+fi
+
+echo "Starting Greenbone Community Edition installer script.."
+sleep 2s
+#ask for password
+while true; do
+ echo
+ echo
+ echo
+ echo "Enter Password for Greenbone admin: " 
+ read password
+ echo
+ echo
+ echo "Confirm Password: "
+  read password2
+  echo
+  [ "$password" = "$password2" ] && break
+  echo "Please try again"
+done
+echo
+echo "Greenbone login - admin  :  $password"
+echo
+echo
+echo "The script will now continue without interruption. Please note this installation may take some time.."
+sleep 3s
 #create user
+echo "Creating gvm user.."
 sudo useradd -r -M -U -G sudo -s /usr/sbin/nologin gvm
-
 sudo usermod -aG gvm $USER
-
-su $USER
+#login to make group change effetive then exit root. 
+su $USER -c 'exit'
 #choose install prefix
+echo "Setting up directories.."
 export INSTALL_PREFIX=/usr/local
 #set PATH
 export PATH=$PATH:$INSTALL_PREFIX/sbin
@@ -37,10 +69,13 @@ curl -f -L https://www.greenbone.net/GBCommunitySigningKey.asc -o /tmp/GBCommuni
 gpg --import /tmp/GBCommunitySigningKey.asc
 #fully trust signing key - 
 echo "8AE4BE429B60A59B311C2E739823FAA60ED1E580:6:" | gpg --import-ownertrust
+echo
+echo
 
 #set version
 export GVM_VERSION=22.4.1
 # setting up GVM_LIBS
+echo "Setting up GVM_LIBS.."
 export GVM_LIBS_VERSION=22.6.3
 sudo apt update
 sudo apt install -y \
@@ -69,6 +104,7 @@ gpg --verify $SOURCE_DIR/gvm-libs-$GVM_LIBS_VERSION.tar.gz.asc $SOURCE_DIR/gvm-l
 tar -C $SOURCE_DIR -xvzf $SOURCE_DIR/gvm-libs-$GVM_LIBS_VERSION.tar.gz
 
 #build gvm-libs
+echo "Building gvm-libs.."
 mkdir -p $BUILD_DIR/gvm-libs && cd $BUILD_DIR/gvm-libs
 
 sudo cmake $SOURCE_DIR/gvm-libs-$GVM_LIBS_VERSION \
@@ -470,21 +506,7 @@ psql gvmd -c "create role dba with superuser noinherit; grant dba to gvm;"
 exit
 EOF
 
-#ask for password
-while true; do
- echo
- echo
- echo
- echo "Enter Password for Greenbone admin: " 
- read password
- echo
- echo
- echo "Confirm Password: "
-  read password2
-  echo
-  [ "$password" = "$password2" ] && break
-  echo "Please try again"
-done
+
 
 /usr/local/sbin/gvmd --create-user=admin --password=$password
 
@@ -611,6 +633,23 @@ sudo systemctl enable gvmd
 sudo systemctl enable gsad
 
 
+
+#changes desktop icon to launch new item. 
+cat > /usr/share/applications/greenbone.desktop <<EOF 
+[Desktop Entry]
+Name=Greenbone Community Edition
+StartupWMClass=greenbone
+Encoding=UTF-8
+Exec=xdg-open "http://127.0.0.1:9392"
+StartupNotify=true
+Terminal=false
+Type=Application
+Icon=/usr/share/icons/dist/greenbone.png
+Categories=Security, Utilities
+EOF
+
+#launch on completion
+xdg-open "http://127.0.0.1:9392" 2>/dev/null >/dev/null &
 
 
 
